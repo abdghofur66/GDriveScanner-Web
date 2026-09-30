@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <!-- STREAMING_CHUNK:Configuring meta tags and libraries... -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Folder Scanner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS untuk Export Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* STREAMING_CHUNK:Styling animations and scrollbars... */
+        /* Animasi garis loading warna bergerak (Indigo) */
+        .loading-bar-container {
+            width: 100%;
+            max-width: 300px;
+            height: 6px;
+            background-color: #e0e7ff; /* indigo-100 */
+            border-radius: 9999px;
+            overflow: hidden;
+            position: relative;
+        }
+        .loading-bar {
+            height: 100%;
+            background-color: #4f46e5; /* indigo-600 */
+            border-radius: 9999px;
+            position: absolute;
+            left: 0;
+            width: 40%;
+            animation: moveBar 1.5s infinite ease-in-out alternate;
+        }
+        @keyframes moveBar {
+            0% { transform: translateX(-100%); width: 20%; }
+            100% { transform: translateX(350%); width: 40%; }
+        }
+        /* Penyesuaian scroll bar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .svg-icon-transition {
+            transition: transform 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col antialiased text-gray-800">
+
+    <!-- STREAMING_CHUNK:Rendering application header... -->
+    <!-- Header Section (Tema Indigo) -->
+    <div class="bg-indigo-600 w-full text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <!-- Left Side -->
+            <div class="flex items-center gap-4">
+                <i data-lucide="folder-search" class="w-8 h-8 flex-shrink-0"></i>
+                <div>
+                    <h1 class="text-xl lg:text-2xl font-bold leading-tight flex items-center gap-2">
+                        Drive Sub-Folder Scanner
+                    </h1>
+                    <p class="text-indigo-100 text-sm mt-0.5">Scan dan urutkan hirarki folder Google Drive dalam satu klik.</p>
+                </div>
+            </div>
+            
+            <!-- Right Side (Author Info) -->
+            <div class="text-left md:text-right text-xs md:text-sm text-indigo-100 flex flex-col md:items-end gap-1 font-medium bg-indigo-700/30 p-3 md:p-0 md:bg-transparent rounded-lg w-full md:w-auto">
+                <div class="text-white font-bold tracking-wide">Abdul Ghofur Iswahyudi <span class="text-indigo-200 font-normal">| v1.0</span></div>
+                <div class="flex flex-wrap md:justify-end gap-x-3 gap-y-1 mt-1">
+                    <a href="https://outsider.my.id" target="_blank" class="hover:text-white transition-colors flex items-center gap-1">
+                        <i data-lucide="globe" class="w-3.5 h-3.5"></i> outsider.my.id
+                    </a>
+                    <a href="https://instagram.com/abdulghofur_isw" target="_blank" class="hover:text-white transition-colors flex items-center gap-1">
+                        <i data-lucide="instagram" class="w-3.5 h-3.5"></i> @abdulghofur_isw
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STREAMING_CHUNK:Building main content and information cards... -->
+    <!-- Main Content Section -->
+    <div class="w-full max-w-7xl mx-auto p-6 lg:p-5 flex-grow">
+        <!-- Grid 3 Kolom Info -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-2">
+            <!-- Info Keamanan & Privasi (Hijau) -->
+            <div class="bg-green-50/50 border border-green-200 rounded-xl p-5 text-sm text-green-800 shadow-sm flex flex-col h-full">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-green-600"></i>
+                    <strong class="font-semibold text-green-900 text-base">Keamanan & Privasi Terjamin</strong>
+                </div>
+                <p class="leading-relaxed flex-grow"> Proses pemindaian dilakukan langsung di browser Anda. <strong> Tidak ada data, nama folder, atau tautan yang kami simpan</strong>. Pembuat web tidak melihat aktifitas Anda.</p>
+            </div>
+
+            <!-- Petunjuk Peringatan Google (Kuning) -->
+            <div class="bg-yellow-50/50 border border-yellow-200 rounded-xl p-5 text-sm text-yellow-800 shadow-sm flex flex-col h-full">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600"></i>
+                    <strong class="font-semibold text-yellow-900 text-base">Petunjuk Akses Folder Publik</strong>
+                </div>
+                <p class="leading-relaxed mb-2 flex-grow">Pastikan folder yanga akan Anda pindai, memiliki hak akses <strong> terbuka (Publik)</strong> atau <strong>"Siapa saja yang memiliki link" (Anyone with the link)</strong></p>
+            </div>
+
+            <!-- Petunjuk Mengambil ID Folder (Biru) -->
+            <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-5 text-sm text-blue-800 shadow-sm flex flex-col h-full">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="zap" class="w-5 h-5 text-blue-600"></i>
+                    <strong class="font-semibold text-blue-900 text-base">Otomatis Ekstrak Link</strong>
+                </div>
+                <p class="leading-relaxed mb-2 flex-grow">Anda tidak perlu lagi mencari ID secara manual. Cukup salin <strong>URL lengkap</strong> folder Drive Anda dan tempel (paste) ke kolom pencarian di bawah.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- STREAMING_CHUNK:Creating input form and auto-extract feature... -->
+        <!-- Input Area -->
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 px-4 sm:px-6 lg:px-8 mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1 w-full relative">
+                    <label for="folderId" class="block text-sm font-semibold text-gray-700 mb-2">Masukkan atau Pastekan Link / URL Folder Drivenya dan akan otomatis menjadi ID</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="hash" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                        <input type="text" id="folderId" oninput="extractFolderId(this)"
+                            class="block w-full pl-10 pr-3 py-3 lg:py-4 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder-gray-400 text-base transition-colors" 
+                            placeholder="Paste Link Google Drive di sini...">
+                    </div>
+                    
+                    <!-- Feedback visual saat ID diekstrak -->
+                    <div id="extractFeedback" class="hidden absolute top-0 right-0 mt-2 mr-2 bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-md font-medium border border-green-200 flex items-center gap-1 shadow-sm">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> ID Berhasil Diekstrak
+                    </div>
+                    
+                    <div class="mt-4 flex items-center ml-1">
+                        <input id="scanFiles" type="checkbox" checked class="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                        <label for="scanFiles" class="ml-2.5 text-sm font-medium text-gray-600 cursor-pointer flex items-center gap-1.5 select-none hover:text-gray-900 transition-colors">
+                            <i data-lucide="file-search" class="w-4 h-4 text-gray-400"></i>
+                            Termasuk scan file di dalam folder (Hilangkan centang jika hanya ingin Scan Foldernya saja)
+                        </label>
+                    </div>
+                </div>
+                <div class="flex items-start md:pt-7">
+                    <button id="scanBtn" onclick="startScan()" 
+                        class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium py-3 lg:py-4 px-8 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm">
+                        <i data-lucide="scan-search" class="w-5 h-5"></i>
+                        <span>Mulai Scan</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-5 bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm text-orange-800 flex items-start gap-3 w-full shadow-sm">
+                <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0 mt-0.5 text-orange-600"></i>
+                <p class="leading-relaxed"><strong>Catatan:</strong> Memindai folder utama yang berisi ribuan sub-folder membutuhkan waktu lebih lama. Jika kapasitas folder sangat besar dan memakan waktu lebih dari 5 menit, hindari opsi "Scan File" agar tidak melampaui limit Google.</p>
+            </div>
+        </div>
+
+        <!-- STREAMING_CHUNK:Structuring scanner results layout... -->
+        <!-- Container Area Pemindaian & Hasil -->
+        <div id="scanProcessContainer">
+            
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden py-16 flex-col items-center justify-center text-center bg-gray-50/50 rounded-2xl border border-gray-100">
+                <div id="loadingPercent" class="text-5xl font-extrabold text-indigo-600 mb-4 font-mono tracking-tighter">0%</div>
+                <div class="loading-bar-container mb-6 shadow-inner">
+                    <div class="loading-bar"></div>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800">Sedang Memproses Drive...</h3>
+                <p class="text-gray-500 text-sm mt-2 max-w-md mx-auto">Memindai hirarki folder dan file. Proses ini membutuhkan beberapa detik hingga menit tergantung kapasitas folder.</p>
+            </div>
+
+            <!-- Results Area -->
+            <div id="resultArea" class="hidden px-6 sm:px-8 lg:px-12">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        Struktur Tree Hasil <span class="text-sm font-medium text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-md border border-gray-200">(Diurutkan A-Z)</span>
+                    </h3>
+                    <div class="flex items-center gap-3 self-start sm:self-auto">
+                        <span id="resultCount" class="bg-indigo-100 text-indigo-800 text-sm font-semibold px-4 py-1.5 rounded-full shadow-sm border border-indigo-200">0 Item</span>
+                        <button onclick="exportToExcel()" class="bg-green-50 border border-green-200 hover:bg-green-100 text-green-700 text-sm font-semibold px-3.5 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                                    Struktur Direktori
+                                </th>
+                                <th class="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider w-48">
+                                    Akses & Tindakan
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody" class="bg-white divide-y divide-gray-100">
+                            <!-- Hasil Render -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STREAMING_CHUNK:Implementing document preview modal... -->
+    <!-- Modal Preview Dokumen -->
+    <div id="previewModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 transition-opacity">
+        <div class="bg-white w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden transform transition-all">
+            <div class="px-5 py-3.5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                    <i data-lucide="eye" class="w-5 h-5 text-indigo-600"></i> Preview Dokumen
+                </h3>
+                <button onclick="closePreview()" class="p-1.5 text-gray-500 hover:bg-gray-200 hover:text-red-600 rounded-lg transition-colors focus:outline-none">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex-grow bg-gray-100 relative">
+                <div id="previewLoading" class="absolute inset-0 flex items-center justify-center">
+                    <i data-lucide="loader-2" class="w-8 h-8 text-indigo-600 animate-spin"></i>
+                </div>
+                <!-- Iframe untuk menampilkan Google Drive Preview -->
+                <iframe id="previewFrame" class="w-full h-full border-0 relative z-10" onload="document.getElementById('previewLoading').style.display='none'"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(global) {
+            /* STREAMING_CHUNK:Initializing utilities and gasRun fix... */
+            // ==========================================
+            // SYSTEM CORE & SECURITY
+            // ==========================================
+            function escapeHTML(str) {
+                if (!str) return '';
+                return str.toString().replace(/[&<>'"]/g, 
+                    tag => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        "'": '&#39;',
+                        '"': '&quot;'
+                    }[tag])
+                );
+            }
+
+            // Ganti URL ini dengan URL Web App dari langkah 1
+            //const API_URL = "URL_WEB_APP_GOOGLE_APPS_SCRIPT_ANDA_DISINI";
+            const API_URL = "https://script.google.com/macros/s/AKfycby8QF5FJdzGSC7KZzIS4n9Qwzz2TJ0-lo_PUxg2uhzMahFr5WRABjlcUs18Jek8cc7n/exec";
+
+            // Mengubah pemanggilan fungsi dari environment Google ke Fetch API eksternal
+            function gasRun(funcName, ...args) {
+                return new Promise((resolve, reject) => {
+                    // Ambil parameter yang diteruskan dari startScan()
+                    const folderId = args[0];
+                    const includeFiles = args[1];
+
+                    // Kirim HTTP POST ke Google Apps Script
+                    fetch(API_URL, {
+                        method: 'POST',
+                        // Gunakan text/plain untuk menghindari pemblokiran CORS Preflight dari Google
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8',
+                        },
+                        body: JSON.stringify({
+                            folderId: folderId,
+                            includeFiles: includeFiles
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        resolve(data);
+                    })
+                    .catch(error => {
+                        reject({ message: "Gagal terhubung ke server backend: " + error.message });
+                    });
+                });
+            }
+
+            /* STREAMING_CHUNK:Defining variables and extract logic... */
+            // ==========================================
+            // APPLICATION LOGIC (SCANNER)
+            // ==========================================
+            let loadingInterval;
+            let currentScanResults = [];
+            let extractTimer;
+
+            function extractFolderId(inputElement) {
+                const value = inputElement.value.trim();
+                const feedback = document.getElementById('extractFeedback');
+                
+                if (value.includes('drive.google.com/')) {
+                    const idMatch = value.match(/[-\w]{25,}/);
+                    
+                    if (idMatch && idMatch[0]) {
+                        inputElement.value = idMatch[0];
+                        feedback.classList.remove('hidden');
+                        inputElement.classList.add('border-green-400', 'ring-2', 'ring-green-100');
+                        
+                        clearTimeout(extractTimer);
+                        extractTimer = setTimeout(() => {
+                            feedback.classList.add('hidden');
+                            inputElement.classList.remove('border-green-400', 'ring-2', 'ring-green-100');
+                        }, 3000);
+                    }
+                }
+            }
+
+            /* STREAMING_CHUNK:Implementing scan trigger logic... */
+            function startScan() {
+                var inputId = document.getElementById('folderId').value.trim();
+                var includeFiles = document.getElementById('scanFiles').checked;
+                var btn = document.getElementById('scanBtn');
+                var loading = document.getElementById('loadingState');
+                var resultArea = document.getElementById('resultArea');
+                var container = document.getElementById('scanProcessContainer');
+                var percentText = document.getElementById('loadingPercent');
+                
+                if(!inputId) {
+                    alert('Silakan masukkan Link atau ID Folder terlebih dahulu!');
+                    document.getElementById('folderId').focus();
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.classList.add('opacity-70', 'cursor-not-allowed');
+                loading.classList.remove('hidden');
+                loading.classList.add('flex');
+                resultArea.classList.add('hidden');
+                currentScanResults = [];
+
+                let pct = 0;
+                percentText.innerText = "0%";
+                clearInterval(loadingInterval);
+                loadingInterval = setInterval(() => {
+                    if (pct < 99) {
+                        let step = Math.max(1, Math.floor((99 - pct) / 20));
+                        pct += step;
+                        percentText.innerText = pct + "%";
+                    }
+                }, 300);
+
+                setTimeout(() => {
+                    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+
+                // Call Asli ke Backend Production Google Script
+                gasRun('getSubFoldersFromUser', inputId, includeFiles)
+                    .then(res => {
+                        if (res && res.success) {
+                            showResults(res.data);
+                        } else {
+                            showError({ message: res?.message || "Gagal mengambil data dari Google Drive." });
+                        }
+                    })
+                    .catch(err => showError(err));
+            }
+
+            /* STREAMING_CHUNK:Parsing and rendering tree results... */
+            function showResults(results) {
+                var btn = document.getElementById('scanBtn');
+                var loading = document.getElementById('loadingState');
+                var resultArea = document.getElementById('resultArea');
+                var tbody = document.getElementById('resultBody');
+                var countLabel = document.getElementById('resultCount');
+
+                clearInterval(loadingInterval);
+                document.getElementById('loadingPercent').innerText = "100%";
+
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                    loading.classList.add('hidden');
+                    loading.classList.remove('flex');
+
+                    if (!results || results.length === 0) {
+                        alert('Tidak ada item di dalam folder tersebut, atau Anda tidak memiliki izin akses (Folder belum di-set Publik).');
+                        return;
+                    }
+
+                    tbody.innerHTML = "";
+                    let folderCount = 0;
+                    let fileCount = 0;
+                    
+                    results.forEach(item => {
+                        if (item.isFile) fileCount++;
+                        else folderCount++;
+                    });
+
+                    countLabel.textContent = fileCount > 0 ? `${folderCount} Folder, ${fileCount} File` : `${folderCount} Folder`;
+
+                    let processedItems = [];
+                    let lastParentAtLevel = {};
+
+                    results.forEach((item, index) => {
+                        let level = 0;
+                        let cleanName = item.name;
+                        
+                        if (item.name.includes("└─")) {
+                            let spaceMatch = item.name.match(/^([\u00A0\s]*)└─ /);
+                            if(spaceMatch) {
+                                let spaceCount = spaceMatch[1].length;
+                                level = Math.floor(spaceCount / 4) + 1;
+                                cleanName = item.name.replace(/^[\u00A0\s]*└─ /, '');
+                            }
+                        }
+                        
+                        let id = 'node-' + index;
+                        let parentId = level > 0 ? lastParentAtLevel[level - 1] : null;
+                        
+                        if (!item.isFile) {
+                            lastParentAtLevel[level] = id;
+                        }
+                        
+                        processedItems.push({
+                            id: id,
+                            parentId: parentId,
+                            level: level,
+                            name: cleanName, 
+                            url: item.url,
+                            isFile: item.isFile,
+                            hasChildren: false,
+                            rawName: item.name 
+                        });
+                    });
+
+                    processedItems.forEach(item => {
+                        if (item.parentId) {
+                            let parent = processedItems.find(p => p.id === item.parentId);
+                            if (parent) parent.hasChildren = true;
+                        }
+                    });
+
+                    currentScanResults = processedItems;
+
+                    /* STREAMING_CHUNK:Rendering individual table rows... */
+                    processedItems.forEach(function(item) {
+                        var row = document.createElement('tr');
+                        row.id = item.id;
+                        row.className = 'hover:bg-indigo-50/60 transition-colors duration-150';
+                        
+                        if (item.parentId) row.setAttribute('data-parent', item.parentId);
+                        row.setAttribute('data-expanded', 'true'); 
+                        
+                        let paddingLeft = item.level * 2; 
+                        let toggleIcon = item.hasChildren ? 
+                            `<button onclick="toggleNode('${item.id}', this)" class="mr-1.5 p-1 rounded hover:bg-gray-200 text-gray-500 transition-colors focus:outline-none">
+                                <i data-lucide="chevron-down" class="w-4 h-4 svg-icon-transition"></i>
+                             </button>` : 
+                            `<span class="w-7 inline-block"></span>`;
+
+                        let itemIconHtml = item.isFile 
+                            ? `<i data-lucide="file-text" class="w-4 h-4 mr-2 text-gray-500 flex-shrink-0 inline"></i>` 
+                            : (item.hasChildren 
+                                ? `<i data-lucide="folder" class="w-5 h-5 mr-2 text-indigo-500 fill-indigo-100 flex-shrink-0 inline"></i>` 
+                                : `<i data-lucide="folder-open" class="w-4 h-4 mr-2 text-gray-400 flex-shrink-0 inline"></i>`);
+                        
+                        let textColor = item.level === 0 ? 'font-bold text-gray-900' : (item.isFile ? 'font-normal text-gray-600' : 'font-medium text-gray-700');
+
+                        let safeName = escapeHTML(item.name);
+                        let safeUrl = escapeHTML(item.url);
+
+                        let actionButtons = '';
+                        // Tambahkan tombol Preview khusus untuk tipe File (Warna Indigo)
+                        if (item.isFile) {
+                            actionButtons += `
+                                <button onclick="openPreview('${safeUrl}')" title="Preview File" class="p-2 text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                            `;
+                        }
+                        
+                        // Tambahkan tombol Copy dan Buka Link untuk semuanya
+                        actionButtons += `
+                            <button onclick="copyToClipboard('${safeUrl}', this)" title="Copy Link" class="p-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            <a href="${safeUrl}" target="_blank" title="Buka di Tab Baru" class="p-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200">
+                                <i data-lucide="external-link" class="w-4 h-4"></i>
+                            </a>
+                        `;
+
+                        row.innerHTML = `
+                            <td class="px-6 py-3.5 whitespace-nowrap text-sm">
+                                <div class="flex items-center" style="padding-left: ${paddingLeft}rem;">
+                                    ${toggleIcon}
+                                    <span class="${textColor} flex items-center">
+                                        ${itemIconHtml}
+                                        ${safeName}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-3.5 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    ${actionButtons}
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    resultArea.classList.remove('hidden');
+                    lucide.createIcons();
+                }, 500);
+            }
+
+            /* STREAMING_CHUNK:Configuring preview and tree utilities... */
+            function openPreview(url) {
+                let previewUrl = url;
+                // Mengubah URL Drive biasa menjadi mode embed preview
+                if (url.includes('/view')) {
+                    previewUrl = url.replace(/\/view.*$/, '/preview');
+                }
+                
+                document.getElementById('previewLoading').style.display = 'flex';
+                document.getElementById('previewFrame').src = previewUrl;
+                document.getElementById('previewModal').classList.remove('hidden');
+            }
+
+            function closePreview() {
+                document.getElementById('previewModal').classList.add('hidden');
+                document.getElementById('previewFrame').src = '';
+            }
+
+            function toggleNode(id, btnElement) {
+                let row = document.getElementById(id);
+                let isExpanded = row.getAttribute('data-expanded') === 'true';
+                let newExpandedState = !isExpanded;
+                
+                row.setAttribute('data-expanded', newExpandedState);
+                
+                let iconSvg = btnElement.querySelector('svg');
+                if (iconSvg) {
+                    iconSvg.style.transform = newExpandedState ? 'rotate(0deg)' : 'rotate(-90deg)';
+                }
+                toggleDescendants(id, newExpandedState);
+            }
+
+            function toggleDescendants(parentId, show) {
+                let rows = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
+                rows.forEach(row => {
+                    if (show) {
+                        row.style.display = '';
+                        let isExpanded = row.getAttribute('data-expanded') === 'true';
+                        if (isExpanded) {
+                            toggleDescendants(row.id, true);
+                        }
+                    } else {
+                        row.style.display = 'none';
+                        toggleDescendants(row.id, false);
+                    }
+                });
+            }
+
+            /* STREAMING_CHUNK:Exporting and copying features... */
+            function exportToExcel() {
+                if (typeof XLSX === 'undefined') {
+                    alert("Library pembuat Excel sedang dimuat. Mohon tunggu sebentar.");
+                    return;
+                }
+                if (!currentScanResults || currentScanResults.length === 0) {
+                    alert("Tidak ada data untuk diekspor.");
+                    return;
+                }
+
+                let excelData = currentScanResults.map(item => {
+                    let prefix = item.level > 0 ? "    ".repeat(item.level - 1) + "└─ " : "";
+                    return {
+                        "Struktur Direktori": prefix + item.name,
+                        "Nama Item": item.name,
+                        "Tipe": item.isFile ? "File" : "Folder",
+                        "Link Akses URL": item.url
+                    };
+                });
+
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                worksheet["!cols"] = [{ wch: 45 }, { wch: 35 }, { wch: 10 }, { wch: 65 }];
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil Scan Drive");
+                XLSX.writeFile(workbook, "Hasil_Scan_Drive.xlsx");
+            }
+
+            function showError(error) {
+                clearInterval(loadingInterval);
+                document.getElementById('loadingPercent').innerText = "Gagal";
+                
+                setTimeout(() => {
+                    alert("Terjadi kesalahan: " + (error.message || error));
+                    var btn = document.getElementById('scanBtn');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('loadingState').classList.remove('flex');
+                }, 300);
+            }
+
+            function copyToClipboard(text, btnElement) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => showCopySuccess(btnElement));
+                } else {
+                    var textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-999999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showCopySuccess(btnElement);
+                    } catch (err) {
+                        alert("Browser Anda tidak mendukung fitur copy otomatis.");
+                    }
+                    textArea.remove();
+                }
+            }
+
+            function showCopySuccess(btnElement) {
+                var originalHtml = '<i data-lucide="copy" class="w-4 h-4"></i>';
+                var successHtml = '<i data-lucide="check" class="w-4 h-4 text-green-600"></i>';
+                
+                btnElement.innerHTML = successHtml;
+                btnElement.classList.replace('border-gray-300', 'border-green-300');
+                btnElement.classList.replace('text-gray-600', 'text-green-600');
+                btnElement.classList.replace('bg-white', 'bg-green-50');
+                lucide.createIcons();
+                
+                setTimeout(function() {
+                    btnElement.innerHTML = originalHtml;
+                    btnElement.classList.replace('border-green-300', 'border-gray-300');
+                    btnElement.classList.replace('text-green-600', 'text-gray-600');
+                    btnElement.classList.replace('bg-green-50', 'bg-white');
+                    lucide.createIcons();
+                }, 2000);
+            }
+
+            /* STREAMING_CHUNK:Finalizing global exposer... */
+            // ==========================================
+            // EXPOSE GLOBAL FUNCTIONS
+            // ==========================================
+            global.startScan = startScan;
+            global.toggleNode = toggleNode;
+            global.exportToExcel = exportToExcel;
+            global.copyToClipboard = copyToClipboard;
+            global.extractFolderId = extractFolderId;
+            global.openPreview = openPreview;
+            global.closePreview = closePreview;
+
+            // Initialize App
+            document.addEventListener("DOMContentLoaded", () => {
+                lucide.createIcons();
+            });
+
+        })(window);
+    </script>
+</body>
+</html>
